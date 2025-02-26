@@ -1,7 +1,9 @@
+mod utils;
+
 use std::io::{ self, Read, Write };
 use std::os::unix::io::AsRawFd;
 use libc::{ termios, tcgetattr, tcsetattr, TCSANOW, ECHO, ICANON };
-use rand::Rng;
+use utils::{ roll, roll_range, random_precept };
 
 const MAP_WIDTH: i8 = 80;
 const MAP_HEIGHT: i8 = 40;
@@ -28,15 +30,6 @@ impl Vector2 {
 struct Game {
     player_pos: Vector2,
     map: [[char; MAP_WIDTH as usize]; MAP_HEIGHT as usize],
-}
-
-fn roll(chance: i8) -> bool {
-    rand::thread_rng().gen_range(0..100) < chance
-}
-
-fn roll_range(min_chance: i8, max_chance: i8) -> bool {
-    let chance = rand::thread_rng().gen_range(min_chance..max_chance);
-    roll(chance)
 }
 
 impl Game {
@@ -116,12 +109,13 @@ impl Game {
 
         // Check for encounter
         if roll_range(15, 35) {
-            self.gen_encouter();
+            self.gen_encounter();
         }
     }
 
-    fn gen_encouter(&mut self) {
-        println!("FOUD ONE! {} | {}", self.player_pos.x, self.player_pos.y);
+    fn gen_encounter(&mut self) {
+        let precept = random_precept();
+        println!("\r{} | {} | {}", precept, self.player_pos.x, self.player_pos.y);
     }
 }
 
