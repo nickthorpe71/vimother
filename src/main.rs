@@ -7,6 +7,7 @@ use utils::{ roll, roll_range, random_precept };
 
 const MAP_WIDTH: i8 = 80;
 const MAP_HEIGHT: i8 = 40;
+const DIALOG_HEIGHT: i8 = 10;
 
 #[derive(Debug, Copy, Clone)]
 struct Vector2 {
@@ -27,14 +28,22 @@ impl Vector2 {
     }
 }
 
+#[derive(PartialEq)]
+enum GameState {
+    OverWorld,
+    BattleTransition,
+    InBattle,
+}
+
 struct Game {
+    game_state: GameState,
     player_pos: Vector2,
     map: [[char; MAP_WIDTH as usize]; MAP_HEIGHT as usize],
 }
 
 impl Game {
     fn new() -> Self {
-        let mut map = [['.'; MAP_WIDTH as usize]; MAP_HEIGHT as usize];
+        let mut map = [[' '; MAP_WIDTH as usize]; MAP_HEIGHT as usize];
 
         for y in 0..MAP_HEIGHT {
             for x in 0..MAP_WIDTH {
@@ -49,6 +58,7 @@ impl Game {
         Self {
             player_pos: Vector2::new(MAP_WIDTH / 2, MAP_HEIGHT / 2),
             map,
+            game_state: GameState::OverWorld,
         }
     }
 
@@ -67,7 +77,6 @@ impl Game {
             }
             println!();
         }
-        println!("Use hjkl to move. Press 'q' to quit.");
         io::stdout().flush().unwrap();
     }
 
@@ -91,6 +100,10 @@ impl Game {
     }
 
     fn handle_move_input(&mut self, dir_x: i8, dir_y: i8) {
+        // This can likely be moved into a "over_world_movement"
+        if self.game_state != GameState::OverWorld {
+            return;
+        }
         // Determine which tile we are trying to move to
         let start_pos = self.player_pos;
         let new_x = (start_pos.x + dir_x).clamp(0, (MAP_WIDTH as i8) - 1);
@@ -115,7 +128,46 @@ impl Game {
 
     fn gen_encounter(&mut self) {
         let precept = random_precept();
-        println!("\r{} | {} | {}", precept, self.player_pos.x, self.player_pos.y);
+        // print!("\r{: <80}", ""); // Print 80 spaces to clear previous text
+        // io::stdout().flush().unwrap();
+        // println!("\r{} | {} | {}", precept, self.player_pos.x, self.player_pos.y);
+        let text = format!("{} | {} | {}", precept, self.player_pos.x, self.player_pos.y);
+        self.draw_dialog(&vec![text]);
+    }
+
+    fn draw_dialog(&mut self, pages: &[String]) {
+        if pages.is_empty() {
+            return;
+        }
+
+        let page_1 = &pages[0];
+
+        for i in 0..DIALOG_HEIGHT - 1 {
+            for j in 0..MAP_WIDTH {
+                if j == 0 || j == MAP_WIDTH - 1 {
+                    print!("|");
+                } else if i == 1 && j < (page_1.len() as i8) + 1 {
+                    print!(
+                        "{}",
+                        page_1
+                            .chars()
+                            .nth((j - 1) as usize)
+                            .unwrap_or(' ')
+                    );
+                } else {
+                    print!(" ");
+                }
+            }
+            println!();
+        }
+
+        // Print bottom border
+        for _ in 0..MAP_WIDTH {
+            print!("-");
+        }
+        println!(); // Move to the next line
+
+        io::stdout().flush().unwrap();
     }
 }
 
