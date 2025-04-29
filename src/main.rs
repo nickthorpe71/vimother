@@ -4,6 +4,8 @@ use std::io::{ self, Read, Write };
 use std::os::unix::io::AsRawFd;
 use libc::{ termios, tcgetattr, tcsetattr, TCSANOW, ECHO, ICANON };
 use utils::{ roll, roll_range, random_precept };
+use std::thread::sleep;
+use std::time::Duration;
 
 const MAP_WIDTH: i8 = 80;
 const MAP_HEIGHT: i8 = 40;
@@ -62,7 +64,7 @@ impl Game {
         }
     }
 
-    fn draw_map(&self) {
+    fn draw_map(&self, map: [[char; MAP_WIDTH as usize]; MAP_HEIGHT as usize]) {
         print!("\x1B[H"); // Move cursor to the top-left corner
 
         for y in 0..MAP_HEIGHT {
@@ -70,7 +72,7 @@ impl Game {
                 let current_tile_symbol = if x == self.player_pos.x && y == self.player_pos.y {
                     "\x1B[36m@\x1B[0m".to_string()
                 } else {
-                    self.map[y as usize][x as usize].to_string()
+                    map[y as usize][x as usize].to_string()
                 };
 
                 print!("{}", current_tile_symbol);
@@ -121,16 +123,19 @@ impl Game {
         self.player_pos = new_pos;
 
         // Check for encounter
-        if roll_range(15, 35) {
+        if roll_range(2, 10) {
             self.gen_encounter();
         }
     }
 
     fn gen_encounter(&mut self) {
+        self.game_state = GameState::BattleTransition;
+
+        self.draw_encounter_transition();
+
+        self.game_state = GameState::OverWorld;
+
         let precept = random_precept();
-        // print!("\r{: <80}", ""); // Print 80 spaces to clear previous text
-        // io::stdout().flush().unwrap();
-        // println!("\r{} | {} | {}", precept, self.player_pos.x, self.player_pos.y);
         let text = format!("{} | {} | {}", precept, self.player_pos.x, self.player_pos.y);
         self.draw_dialog(&vec![text]);
     }
@@ -168,6 +173,58 @@ impl Game {
         println!(); // Move to the next line
 
         io::stdout().flush().unwrap();
+    }
+
+    fn draw_encounter_transition(&mut self) {
+        let start = self.player_pos;
+        let mut x = start.x as i16;
+        let mut y = start.y as i16;
+        let mut map_clone = self.map.clone();
+        let map_w_16 = MAP_WIDTH as i16;
+        let map_h_16 = MAP_HEIGHT as i16;
+        let mut draw_speed = 90;
+
+        let dirs: [(i16, i16); 4] = [
+            (1, 0),
+            (0, 1),
+            (-1, 0),
+            (0, -1),
+        ]; // Right, Down, Left, Up
+        let mut step_count = 1;
+        let mut dir_index = 0;
+
+        while step_count < map_w_16.max(map_h_16) / 2 {
+            let (dx, dy) = dirs[dir_index % 4];
+
+            for _ in 0..step_count {
+                x += dx;
+                y += dy;
+
+                if x >= 0 && x < map_w_16 && y >= 0 && y < map_h_16 {
+                    map_clone[y as usize][x as usize] = '*';
+                }
+
+                self.draw_map(map_clone);
+                sleep(Duration::from_millis(draw_speed));
+            }
+
+            dir_index += 1;
+
+            // Increase step size every two turns to create a spiral effect
+            if dir_index % 2 == 0 {
+                step_count += 1;
+                draw_speed = ((draw_speed as f32) * 0.7) as u64;
+            }
+        }
+
+        // Turn entire screen to '*'
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
+                map_clone[y as usize][x as usize] = '*';
+            }
+        }
+        self.draw_map(map_clone);
+        sleep(Duration::from_millis(1200));
     }
 }
 
@@ -214,7 +271,7 @@ fn main() {
     let mut game = Game::new();
 
     loop {
-        game.draw_map();
+        game.draw_map(game.map);
         if !game.update() {
             break;
         }
